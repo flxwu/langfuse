@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { NewAlertForm } from "@/src/features/alerts/components/NewAlertForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -39,11 +40,10 @@ export const NewAlertButton = (props: {
         <DialogHeader>
           <DialogTitle className="mb-5">Create new Alert</DialogTitle>
         </DialogHeader>
-        {/* TODO: Form for creating new alert 
-        * <NewDatasetForm
+        <NewAlertForm
           projectId={props.projectId}
           onFormSuccess={() => setOpen(false)}
-        /> */}
+        />
       </DialogContent>
     </Dialog>
   );

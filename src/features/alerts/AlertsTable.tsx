@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { NewAlertButton } from "@/src/features/alerts/NewAlertButton";
+import { NewAlertButton } from "@/src/features/alerts/components/NewAlertButton";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 
@@ -10,6 +10,7 @@ type RowData = {
     name: string;
   };
   trigger: string;
+  webhook: string;
 };
 
 export function AlertsTable(props: { projectId: string }) {
@@ -30,6 +31,10 @@ export function AlertsTable(props: { projectId: string }) {
       accessorKey: "trigger",
       header: "Alert triggers when",
     },
+    {
+      accessorKey: "webhook",
+      header: "Webhook URL",
+    },
   ];
 
   const convertToTableRow = (
@@ -38,6 +43,7 @@ export function AlertsTable(props: { projectId: string }) {
     return {
       key: { id: item.id, name: item.name },
       trigger: `When ${item.alertMetric} exceeds ${item.alertThreshold}`,
+      webhook: item.triggerWebhookUrl ?? "",
     };
   };
 
