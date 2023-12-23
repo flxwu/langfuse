@@ -12,16 +12,15 @@ const AlertFilterOptions = z.object({
 });
 
 export const alertsRouter = createTRPCRouter({
-  all: protectedProjectProcedure.input(AlertFilterOptions).query(async () => {
-    const alerts = [
-      {
-        id: "1",
-        name: "Alert 1",
-        triggerAttribute: "cost",
-        triggerOperator: ">",
-        triggerValue: 100,
-      },
-    ];
-    return Promise.resolve(alerts);
-  }),
+  all: protectedProjectProcedure
+    .input(AlertFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const alerts = await ctx.prisma.alert.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      return alerts;
+    }),
 });

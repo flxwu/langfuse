@@ -1,8 +1,8 @@
-import { PrismaClient } from "@prisma/client";
 import {
-  hashSecretKey,
   getDisplaySecretKey,
+  hashSecretKey,
 } from "@/src/features/public-api/lib/apiKeys";
+import { AlertMetric, PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
@@ -376,6 +376,15 @@ async function main() {
         }
       }
     }
+
+    await prisma.alert.create({
+      data: {
+        name: "Cost Alert on 100$",
+        projectId: project2.id,
+        alertMetric: AlertMetric.COST_PER_USER,
+        alertThreshold: 100,
+      },
+    });
 
     const dataset = await prisma.dataset.create({
       data: {

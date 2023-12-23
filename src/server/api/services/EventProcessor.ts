@@ -1,4 +1,7 @@
-import { tokenCount } from "@/src/features/ingest/lib/usage";
+import {
+  getTokenCostForUser,
+  tokenCount,
+} from "@/src/features/ingest/lib/usage";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import {
   eventTypes,
@@ -15,12 +18,12 @@ import {
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
-import { getTokenCostForUser } from "@/src/server/api/services/getTokenCost";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
 import { jsonSchema } from "@/src/utils/zod";
 import {
+  AlertMetric,
   type Observation,
   type Prisma,
   type Score,
@@ -228,14 +231,41 @@ export class ObservationProcessor implements EventProcessor {
 
   async checkForAlerts(projectId: string, observationId: string) {
     try {
-      const totalTokenCost = await getTokenCostForUser(prisma, {
+      // Check for COST_PER_USER alerts
+      const tokenCost = await getTokenCostForUser(prisma, {
         projectId: projectId,
-        observationId: observationId,
+        getUserByObservationId: observationId,
       });
-      console.log(
-        `Total token cost for observation ${observationId} is ${totalTokenCost}`,
-      );
-      // TODO: Query cost alerts and check if we triggered any
+      // TODO: This will fire the alert redundantly once the threshold is crossed.
+      //      We should only fire it once per user per time frame.
+      const alertsToTrigger = await prisma.alert.findMany({
+        where: {
+          projectId: projectId,
+          alertMetric: AlertMetric.COST_PER_USER,
+          alertThreshold: {
+            lte: tokenCost.totalTokenCost,
+          },
+        },
+      });
+      alertsToTrigger.forEach((alert) => {
+        if (!alert.triggerWebhookUrl) return;
+        console.log(
+          `[Alerts] Triggering webhook ${alert.triggerWebhookUrl} for alert`,
+          alert.id,
+        );
+        void fetch(alert.triggerWebhookUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            userId: tokenCost.user,
+            alertName: alert.name,
+            alertMetric: alert.alertMetric,
+            value: tokenCost.totalTokenCost,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      });
     } catch (err) {
       // An error here should not block the rest of the ingestion
       console.warn("Non-blocking Error while checking for alerts", err);
@@ -250,9 +280,7 @@ export class ObservationProcessor implements EventProcessor {
 
     const obs = await this.convertToObservation(apiScope);
 
-    await this.checkForAlerts(apiScope.projectId, obs.id);
-
-    return await prisma.observation.upsert({
+    const obsSaved = await prisma.observation.upsert({
       where: {
         id_projectId: {
           id: obs.id,
@@ -262,6 +290,13 @@ export class ObservationProcessor implements EventProcessor {
       create: obs.create,
       update: obs.update,
     });
+
+    // We have to check for alerts after the observation is saved to the database
+    console.time("checkForAlerts");
+    await this.checkForAlerts(apiScope.projectId, obs.id);
+    console.timeEnd("checkForAlerts");
+
+    return obsSaved;
   }
 }
 export class TraceProcessor implements EventProcessor {
