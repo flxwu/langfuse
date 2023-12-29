@@ -52,3 +52,8 @@ export function isValidOption(
     dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
   );
 }
+
+export const AlertOperatorToSymbol = {
+  GREATER_THAN: ">",
+  LESS_THAN: "<",
+};

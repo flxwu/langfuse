@@ -28,7 +28,7 @@ export function AlertsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "trigger",
-      header: "Trigger",
+      header: "Alert triggers when",
     },
   ];
 
@@ -37,7 +37,7 @@ export function AlertsTable(props: { projectId: string }) {
   ): RowData => {
     return {
       key: { id: item.id, name: item.name },
-      trigger: `${item.triggerAttribute} ${item.triggerOperator} ${item.triggerValue}`,
+      trigger: `When ${item.alertMetric} exceeds ${item.alertThreshold}`,
     };
   };
 

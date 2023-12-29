@@ -6,8 +6,13 @@ import {
   type Tiktoken,
 } from "tiktoken";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { type PricingUnit, type Pricing } from "@prisma/client";
+import {
+  type PrismaClient,
+  type PricingUnit,
+  type Pricing,
+} from "@prisma/client";
 import { Decimal } from "decimal.js";
+import { executeQuery } from "@/src/server/api/services/query-builder";
 
 type ChatMessage = {
   role: string;
@@ -298,3 +303,48 @@ const calculateValue = (
       return undefined;
   }
 };
+
+/**
+ * Get the total token cost over all time for the user of given the observation
+ */
+export async function getTokenCostForUser(
+  prisma: PrismaClient,
+  {
+    projectId,
+    getUserByObservationId: observationId,
+  }: {
+    projectId: string;
+    getUserByObservationId: string;
+  },
+) {
+  const queryResult = await executeQuery(prisma, projectId, {
+    from: "traces_observations",
+    select: [{ column: "totalTokenCost" }, { column: "user" }],
+    // TODO: Ability to get token cost based custom filter (e.g. timeframe)
+    filter: [
+      // Filter for this observation's trace's user
+      {
+        type: "string" as const,
+        column: "user",
+        operator: "=",
+        value: `(SELECT tmp_t.user_id FROM traces tmp_t
+                JOIN observations tmp_o ON tmp_t.id = tmp_o.trace_id
+                WHERE tmp_o.id = '${observationId}'
+                LIMIT 1)`,
+        valueIsRawSQL: true,
+      },
+    ],
+    groupBy: [{ type: "string", column: "user" }],
+  });
+
+  if (queryResult.length === 0) {
+    throw new Error(
+      `No traces_observations found for project ${projectId} and the user of observation ${observationId} `,
+    );
+  }
+
+  return queryResult[0] as {
+    totalTokenCost: number;
+    user: string;
+  };
+}
