@@ -27,6 +27,7 @@ export const stringFilter = z.object({
   operator: z.enum(filterOperators.string),
   value: z.string(),
   type: z.literal("string"),
+  valueIsRawSQL: z.boolean().optional(),
 });
 export const numberFilter = z.object({
   column: z.string(),
@@ -61,6 +62,7 @@ export const booleanFilter = z.object({
   operator: z.enum(filterOperators.boolean),
   value: z.boolean(),
 });
+
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,
   stringFilter,

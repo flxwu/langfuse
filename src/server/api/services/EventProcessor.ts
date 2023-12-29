@@ -1,32 +1,33 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
+import {
+  eventTypes,
+  type eventCreateEvent,
+  type generationCreateEvent,
+  type generationUpdateEvent,
+  type legacyObservationCreateEvent,
+  type legacyObservationUpdateEvent,
+  type scoreEvent,
+  type sdkLogEvent,
+  type spanCreateEvent,
+  type spanUpdateEvent,
+  type traceEvent,
+} from "@/src/features/public-api/server/ingestion-api-schema";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { AuthenticationError } from "@/src/pages/api/public/ingestion";
-import {
-  type legacyObservationCreateEvent,
-  eventTypes,
-  type traceEvent,
-  type scoreEvent,
-  type eventCreateEvent,
-  type spanCreateEvent,
-  type generationCreateEvent,
-  type spanUpdateEvent,
-  type generationUpdateEvent,
-  type legacyObservationUpdateEvent,
-  type sdkLogEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+import { getTokenCostForUser } from "@/src/server/api/services/getTokenCost";
 import { prisma } from "@/src/server/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
+import { jsonSchema } from "@/src/utils/zod";
 import {
-  type Trace,
   type Observation,
-  type Score,
   type Prisma,
+  type Score,
+  type Trace,
 } from "@prisma/client";
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { jsonSchema } from "@/src/utils/zod";
 
 export interface EventProcessor {
   process(
@@ -84,6 +85,7 @@ export class ObservationProcessor implements EventProcessor {
     }
 
     const { id, traceId, name, startTime, metadata } = body;
+    console.log({ body });
 
     const existingObservation = id
       ? await prisma.observation.findUnique({
@@ -224,6 +226,22 @@ export class ObservationProcessor implements EventProcessor {
     return [newPromptTokens, newCompletionTokens];
   }
 
+  async checkForAlerts(projectId: string, observationId: string) {
+    try {
+      const totalTokenCost = await getTokenCostForUser(prisma, {
+        projectId: projectId,
+        observationId: observationId,
+      });
+      console.log(
+        `Total token cost for observation ${observationId} is ${totalTokenCost}`,
+      );
+      // TODO: Query cost alerts and check if we triggered any
+    } catch (err) {
+      // An error here should not block the rest of the ingestion
+      console.warn("Non-blocking Error while checking for alerts", err);
+    }
+  }
+
   async process(
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> {
@@ -231,6 +249,8 @@ export class ObservationProcessor implements EventProcessor {
       throw new AuthenticationError("Access denied for observation creation");
 
     const obs = await this.convertToObservation(apiScope);
+
+    await this.checkForAlerts(apiScope.projectId, obs.id);
 
     return await prisma.observation.upsert({
       where: {

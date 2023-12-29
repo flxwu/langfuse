@@ -1,4 +1,5 @@
 import {
+  type stringFilter,
   type singleFilter,
   type timeFilter,
 } from "@/src/server/api/interfaces/filters";
@@ -233,21 +234,27 @@ const prepareFilterString = (
       console.error(`Column ${filter.column} not found`);
       throw new Error(`Column ${filter.column} not found`);
     }
+
     // raw manfatory for column defs and operator
     // non raw for value, which will go into parameterised string
     if (filter.type === "datetime") {
       return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
         filter.operator,
       )} ${filter.value}::timestamp with time zone at time zone 'UTC'`;
-    } else {
-      return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
-        filter.operator,
-      )} ${filter.value} ${
-        column.name === "type" && table === "observations"
-          ? Prisma.sql`::"ObservationType"`
-          : Prisma.empty
-      }`;
     }
+
+    // Re-parse value as Prisma.raw if valueIsRawSQL is set
+    const rawSQL =
+      (filter as z.infer<typeof stringFilter>).valueIsRawSQL === true;
+    const value = rawSQL ? Prisma.raw(filter.value as string) : filter.value;
+
+    return Prisma.sql`${getInternalSql(column)} ${Prisma.raw(
+      filter.operator,
+    )} ${value} ${
+      column.name === "type" && table === "observations"
+        ? Prisma.sql`::"ObservationType"`
+        : Prisma.empty
+    }`;
   });
   return Prisma.join(filters, " AND ");
 };
