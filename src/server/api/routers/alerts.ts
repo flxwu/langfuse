@@ -11,6 +11,20 @@ const AlertFilterOptions = z.object({
   ...paginationZod,
 });
 
+const AlertCreateOptions = z.object({
+  projectId: z.string(),
+  name: z.string(),
+  alertMetric: z.enum(["COST_PER_USER"]),
+  alertThreshold: z.number(),
+  triggerWebhookUrl: z
+    .string()
+    .trim()
+    .url()
+    .regex(/^https?:\/\//, {
+      message: "URL must start with http:// or https://",
+    }),
+});
+
 export const alertsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(AlertFilterOptions)
@@ -22,5 +36,18 @@ export const alertsRouter = createTRPCRouter({
       });
 
       return alerts;
+    }),
+  createAlert: protectedProjectProcedure
+    .input(AlertCreateOptions)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.prisma.alert.create({
+        data: {
+          name: input.name,
+          projectId: input.projectId,
+          alertMetric: input.alertMetric,
+          alertThreshold: input.alertThreshold,
+          triggerWebhookUrl: input.triggerWebhookUrl,
+        },
+      });
     }),
 });
